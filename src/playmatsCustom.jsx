@@ -4,9 +4,10 @@ import playmat2 from "./assets/playmat2.png";
 import playmat3 from "./assets/playmat3.png";
 import "./playmatsCustom.css";
 
-export default function Playmat() {
+export default function Playmat({ onAddToCart }) {
   const [currentBg, setCurrentBg] = useState(playmat1);
   const [customImage, setCustomImage] = useState(null);
+  const [fileName, setFileName] = useState("");
   
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [scale, setScale] = useState(1); 
@@ -18,6 +19,7 @@ export default function Playmat() {
     const file = e.target.files[0];
     if (file) {
       setCustomImage(URL.createObjectURL(file));
+      setFileName(file.name);
       setPosition({ x: 0, y: 0 });
       setScale(1);
       setRotation(0);
@@ -56,6 +58,28 @@ export default function Playmat() {
       const newScale = e.deltaY < 0 ? prevScale + zoomSpeed : prevScale - zoomSpeed;
       return Math.min(Math.max(0.5, newScale), 4);
     });
+  };
+
+  // 🛒 Función que empaqueta el playmat personalizado y lo manda al carrito
+  const handleAddPlaymatToCart = () => {
+    if (!customImage) {
+      alert("Por favor sube una imagen para tu playmat antes de agregarlo al carrito.");
+      return;
+    }
+
+    if (onAddToCart) {
+      const playmatProduct = {
+        id: `playmat-${Date.now()}`,
+        name: `Playmat Personalizado (${fileName || 'Diseño TCG'})`,
+        price: 450, // Precio estándar de playmat personalizado
+        image: customImage,
+        background: currentBg,
+        transform: { position, scale, rotation }
+      };
+
+      // Los playmats son de medida única estándar, mandamos "Única" como talla
+      onAddToCart(playmatProduct, "Única");
+    }
   };
 
   return (
@@ -131,6 +155,27 @@ export default function Playmat() {
             mixBlendMode: customImage ? "multiply" : "normal",
           }}
         />
+      </div>
+
+      {/* 🛒 Botón para agregar el playmat al carrito */}
+      <div style={{ marginTop: "20px", textAlign: "center" }}>
+        <button 
+          onClick={handleAddPlaymatToCart}
+          disabled={!customImage}
+          style={{
+            backgroundColor: customImage ? "#16a34a" : "#27272a",
+            color: customImage ? "#fff" : "#71717a",
+            border: "none",
+            padding: "12px 28px",
+            borderRadius: "8px",
+            fontWeight: "bold",
+            cursor: customImage ? "pointer" : "not-allowed",
+            fontSize: "1rem",
+            boxShadow: customImage ? "0 4px 12px rgba(22, 163, 74, 0.4)" : "none"
+          }}
+        >
+          Agregar Playmat al Carrito 🛒
+        </button>
       </div>
     </div>
   );
