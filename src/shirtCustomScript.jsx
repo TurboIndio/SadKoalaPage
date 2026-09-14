@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
-import shirtMockUp from "./assets/shirt.png";
-import shirtNoise from "./assets/noise.png";
+import shirtMockUp from "./assets/shirt.webp";
+import shirtNoise from "./assets/noise.webp";
 import "./shirtCustomScript.css";
 
 const supabase = createClient("https://wnezxpgkymojzotrzcmc.supabase.co", "sb_publishable_GWwMGvh0jiuJKxlV_EXnrA_q-yk3899");

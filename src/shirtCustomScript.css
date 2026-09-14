@@ -75,19 +75,20 @@
   align-items: center;
   justify-content: center;
   pointer-events: none;
-  perspective: 1000px;
+  perspective: 3000px;
 
   
 }
 
 /* Estilos exclusivos para cuando está en el modo personalizador */
 .customizer-container .shirt-design-stage-3d {
-   transform: translateX(-15px);
+   transform: translateX(-19px);
 }
 
 /* Estilos exclusivos por si quieres que en el catálogo se vea diferente */
 .catalog-container .shirt-design-stage-3d {
-    transform: translateX(3px);
+    transform: translateX(2.5px);
+    scale: 1.1;
 }
 
 .shirt-design-img-3d {

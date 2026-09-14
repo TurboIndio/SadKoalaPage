@@ -1,7 +1,7 @@
 import { useState } from "react";
-import playmat1 from "./assets/playmat1.png";
-import playmat2 from "./assets/playmat2.png";
-import playmat3 from "./assets/playmat3.png";
+import playmat1 from "./assets/playmat1.webp";
+import playmat2 from "./assets/playmat2.webp";
+import playmat3 from "./assets/playmat3.webp";
 import "./playmatsCustom.css";
 
 export default function Playmat({ onAddToCart }) {

@@ -134,6 +134,8 @@ export default function App() {
         {currentView === "main" && (
           <MainView 
             onGoCatalog={() => handleNavChange("catalog")} 
+            onGoPlaymats={() => handleNavChange("playmats")} 
+            onGoHome={() => handleNavChange("catalog")}
             onSelectShirt={(product) => {
               setSelectedProduct(product);
               setCurrentView("customizer");
@@ -177,7 +179,6 @@ export default function App() {
                 <div style={{ maxHeight: "280px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "10px", marginBottom: "20px", paddingRight: "4px" }}>
                   {cart.map((item) => (
                     <div key={item.cartId} style={cartItemStyle}>
-                      {/* 🖼️ Miniatura del producto comprado */}
                       <div style={{ 
                         width: "50px", 
                         height: "50px", 

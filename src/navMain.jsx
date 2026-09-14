@@ -32,7 +32,7 @@ export default function NavMain({ onGoHome, onGoMain, onGoPlaymats, onGoContact,
 
   return (
     <header ref={navRef} className="navbar" style={{ opacity: 0 }}>
-      <div className="navbar-brand" onClick={onGoHome} style={{ cursor: "pointer" }}>
+      <div className="navbar-brand" onClick={onGoMain} style={{ cursor: "pointer" }}>
         <h2>SAD KOALA STUDIO</h2>
       </div>
       
@@ -46,9 +46,9 @@ export default function NavMain({ onGoHome, onGoMain, onGoPlaymats, onGoContact,
         <button className="nav-link" onClick={onGoPlaymats}>
           Playmats
         </button>
-        <button className="nav-link" onClick={onGoContact}>
+  {/*       <button className="nav-link" onClick={onGoContact}>
           Contacto
-        </button>
+        </button> */}
         <button className="nav-link nav-btn-order" onClick={onGoOrders}>
           Pedidos
         </button>

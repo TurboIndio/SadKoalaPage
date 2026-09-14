@@ -2,36 +2,39 @@ import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
 import "./mainPage.css";
 
-// Reemplaza con tus imágenes de banner locales si ya las tienes
+// Imágenes de banner locales
 import banner1 from "./assets/banner1.jpg";
 import banner2 from "./assets/banner2.jpg";
 import banner3 from "./assets/banner3.jpg";
 
-// Instancia de Supabase por si se carga de forma independiente
+// Instancia de Supabase
 const supabase = createClient("https://wnezxpgkymojzotrzcmc.supabase.co", "sb_publishable_GWwMGvh0jiuJKxlV_EXnrA_q-yk3899");
 
-export default function MainView({ onGoCatalog, onSelectShirt }) {
+export default function MainView({ onGoHome, onGoMain, onGoPlaymats, onGoContact, onGoOrders, onGoCatalog, onSelectShirt }) {
   const slides = [
     {
       id: 1,
       title: "DESCUBRE LA COLECCIÓN",
       subtitle: "Diseños de impresión online de alta calidad.",
       image: banner1,
-      cta: "Ir al Catálogo"
+      cta: "Ir al Catálogo",
+      action: onGoCatalog || onGoHome
     },
     {
       id: 2,
       title: "PLAYMATS PERSONALIZADOS",
       subtitle: "Dale estilo a tus juegos de cartas con la mejor textura.",
       image: banner2,
-      cta: "Personalizar Playmat"
+      cta: "Personalizar Playmat",
+      action: onGoPlaymats || onGoHome
     },
     {
       id: 3,
       title: "ESTILO URBANO Y GAMER",
       subtitle: "Playeras y mercancía única hecha a tu medida.",
       image: banner3,
-      cta: "Ver Diseños"
+      cta: "Ver Diseños",
+      action: onGoCatalog || onGoHome
     }
   ];
 
@@ -51,11 +54,10 @@ export default function MainView({ onGoCatalog, onSelectShirt }) {
   useEffect(() => {
     async function fetchBestSellers() {
       try {
-        // Puedes filtrar por alguna columna de ventas o traer los primeros elementos
         const { data, error } = await supabase
           .from("Shirts")
           .select("*")
-          .limit(4); // Muestra las primeras 4 como más vendidas
+          .limit(4);
 
         if (!error && data) {
           setBestSellers(data);
@@ -84,7 +86,7 @@ export default function MainView({ onGoCatalog, onSelectShirt }) {
               <div className="reel-content">
                 <h1>{slide.title}</h1>
                 <p>{slide.subtitle}</p>
-                <button className="reel-btn" onClick={onGoCatalog}>
+                <button className="reel-btn" onClick={slide.action}>
                   {slide.cta} 🚀
                 </button>
               </div>
@@ -107,13 +109,12 @@ export default function MainView({ onGoCatalog, onSelectShirt }) {
       <div style={{ width: "100%", maxWidth: "1200px", padding: "50px 20px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "25px" }}>
           <div>
-       
             <p style={{ color: "#a1a1aa", fontSize: "0.95rem", marginTop: "5px" }}>
               Los diseños favoritos de la comunidad listos para ti.
             </p>
           </div>
           <button 
-            onClick={onGoCatalog}
+            onClick={onGoCatalog || onGoHome}
             style={{
               backgroundColor: "transparent",
               color: "#3b82f6",
