@@ -1,64 +1,51 @@
-.playmat-container {
+/* Layout Principal */
+.playmat-main-layout {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
-  min-height: 60vh;
+  gap: 50px;
+  padding: 40px;
+  flex-wrap: wrap;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 70vh;
   user-select: none;
-transform: translatey(-20px);
+  transform: translateY(75px);
 }
 
-.playmat-controls {
+.playmat-preview-column {
   display: flex;
-  gap: 10px;
+  justify-content: center;
   align-items: center;
-  z-index: 10;
-  margin-top: 20px;
-  
 }
 
-.playmat-file-input {
-  color: #fff;
+.playmat-sidebar-column {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 400px;
+  width: 100%;
 }
 
-.playmat-btn {
-  padding: 8px 16px;
-  color: #fff;
-  border-radius: 6px;
-  font-weight: bold;
-  cursor: pointer;
-  border: 1px solid #555;
-  
-}
-
-.btn-active {
-  background-color: #28a745;
-  border: none;
-}
-
-.btn-disabled {
-  background-color: #555;
-  border: none;
-  cursor: not-allowed;
-}
-
-.btn-selected {
-  background-color: #007bff;
-}
-
-.btn-dark {
-  background-color: #333;
-}
-
+/* Contenedor dinámico Horizontal vs Vertical */
 .playmat-preview-box {
-
   position: relative;
-  width: 600px;
-  height: 350px;
   background-color: #111;
-  border-radius: 26px;
+  border-radius: 28px;
   overflow: hidden;
-    margin-top: 20px;
+  margin-top: 10px;
+  transition: width 0.3s ease, height 0.3s ease;
+}
+
+.preview-horizontal {
+  width: 720px;
+  height: 420px;
+}
+
+.preview-vertical {
+  width: 420px;
+  height: 720px;
 }
 
 .playmat-drag-area {
@@ -84,12 +71,92 @@ transform: translatey(-20px);
 
 .playmat-bg-img {
   position: absolute;
-  top: -4px;
+  top: 0;
   left: 0;
-  width: 102%;
-  height: 103%;
-  object-fit: fill;
+  width: 100%;
+  height: 100%;
   z-index: 2;
   pointer-events: none;
 }
 
+/* Resto de botones y estilos de tu panel */
+.playmat-controls-group {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.playmat-selectors-group {
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.playmat-hidden-input {
+  display: none;
+}
+
+.playmat-upload-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  cursor: pointer;
+  text-align: center;
+}
+
+.playmat-full-width {
+  width: 100%;
+}
+
+.playmat-flex-1 {
+  flex: 1;
+}
+
+.playmat-btn {
+  padding: 12px 20px;
+  color: #fff;
+  border-radius: 8px;
+  font-weight: bold;
+  font-size: 1.05rem;
+  cursor: pointer;
+  border: 1px solid #555;
+}
+
+.btn-active {
+  background-color: #28a745;
+  border: none;
+}
+
+.btn-selected {
+  background-color: #007bff;
+  border: none;
+}
+
+.btn-dark {
+  background-color: #333;
+}
+
+.playmat-cart-btn {
+  width: 100%;
+  border: none;
+  padding: 16px 24px;
+  border-radius: 10px;
+  font-weight: bold;
+  font-size: 1.15rem;
+  transition: background-color 0.2s ease;
+}
+
+.cart-enabled {
+  background-color: #16a34a;
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(22, 163, 74, 0.4);
+}
+
+.cart-disabled {
+  background-color: #27272a;
+  color: #71717a;
+  cursor: not-allowed;
+  box-shadow: none;
+}

@@ -4,7 +4,7 @@ html, body, #root {
   padding: 0;
   width: 100%;
   height: 100%;
-  background-color: #121214; /* O el color de fondo oscuro que utilices */
+  background-color: #121214;
   color: #ffffff;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   box-sizing: border-box;

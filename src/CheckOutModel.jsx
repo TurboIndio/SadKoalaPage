@@ -1,34 +1,128 @@
 import { useState } from "react";
+import { supabase } from "../supabaseClient";
 
 export default function CheckoutModal({ product, selectedSize, onClose }) {
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    address: "",
-    city: "",
-    postalCode: "",
-  });
-
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
+  const [city, setCity] = useState("");
+  const [postalCode, setPostalCode] = useState("");
+  
+  const [imageFile, setImageFile] = useState(null);
   const [loading, setLoading] = useState(false);
-
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
 
   const handleProcessPayment = async (e) => {
     e.preventDefault();
     setLoading(true);
 
-    // Aquí es donde próximamente conectaremos con Stripe para crear la sesión de pago
-    console.log("Datos del cliente:", formData);
-    console.log("Producto a comprar:", product, "Talla:", selectedSize);
+    try {
+      const hdFileToUpload = product?.rawFile || imageFile;
 
-    // Simulamos un retraso de conexión
-    setTimeout(() => {
-      alert("¡Próximamente aquí se abrirá la pasarela segura de Stripe!");
+      if (!hdFileToUpload) {
+        alert("Por favor selecciona una imagen para el producto.");
+        setLoading(false);
+        return;
+      }
+
+      const timestamp = Date.now();
+      const randomStr = Math.random().toString(36).substring(2, 9);
+      
+      // 1. Subir la imagen HD original
+      const fileExt = hdFileToUpload.name ? hdFileToUpload.name.split('.').pop() : 'png';
+      const cleanFileNameHD = `${timestamp}_${randomStr}_hd.${fileExt}`;
+
+      const { error: uploadErrorHD } = await supabase.storage
+        .from("playmats")
+        .upload(cleanFileNameHD, hdFileToUpload, { cacheControl: "3600", upsert: false });
+
+      if (uploadErrorHD) throw new Error(`Supabase HD: ${uploadErrorHD.message}`);
+
+      const { data: publicUrlDataHD } = supabase.storage
+        .from("playmats")
+        .getPublicUrl(cleanFileNameHD);
+
+      const imageUrl = publicUrlDataHD?.publicUrl;
+
+      // 2. Subir la Foto/Screenshot del encuadre
+      let imagePreviewUrl = imageUrl;
+
+      if (product?.screenshotDataUrl) {
+        const previewBlob = await (await fetch(product.screenshotDataUrl)).blob();
+        const cleanFileNamePreview = `${timestamp}_${randomStr}_encuadre.png`;
+
+        const { error: uploadErrorPreview } = await supabase.storage
+          .from("playmats")
+          .upload(cleanFileNamePreview, previewBlob, {
+            cacheControl: "3600",
+            contentType: "image/png",
+            upsert: false
+          });
+
+        if (!uploadErrorPreview) {
+          const { data: publicUrlDataPreview } = supabase.storage
+            .from("playmats")
+            .getPublicUrl(cleanFileNamePreview);
+
+          if (publicUrlDataPreview?.publicUrl) {
+            imagePreviewUrl = publicUrlDataPreview.publicUrl;
+          }
+        }
+      }
+
+      // 3. Estructurar payload compatible con la nueva plantilla multi-producto
+      const itemData = {
+        producto: product?.name || "Producto Personalizado",
+        talla: selectedSize || "Estándar",
+        color: product?.color || "Estándar",
+        precio: product?.price || 0,
+        imagenUrl: imageUrl,
+        imagenPreviewUrl: imagePreviewUrl
+      };
+
+      let captionHtml = `<b>📦 NUEVO PEDIDO DIRECTO</b>\n`;
+      captionHtml += `<b>Cliente:</b> ${name}\n`;
+      captionHtml += `<b>Contacto:</b> ${phone} | ${email}\n`;
+      captionHtml += `<b>Dirección:</b> ${address}, ${city} (CP ${postalCode})\n\n`;
+      captionHtml += `<b>───────────────</b>\n`;
+      captionHtml += `<b>Producto:</b> ${itemData.producto}\n`;
+      captionHtml += `👕 <b>Talla:</b> ${itemData.talla}\n`;
+      captionHtml += `💰 <b>Precio:</b> $${itemData.precio} MXN\n`;
+      captionHtml += `💾 <a href="${itemData.imagenUrl}">Descargar Imagen HD</a>\n`;
+
+      const payload = {
+        items: [itemData],
+        totalPrecio: itemData.precio,
+        captionHtml: captionHtml,
+        imagenPreviewUrl: imagePreviewUrl,
+        name: name,
+        email: email,
+        phone: phone,
+        address: address,
+        city: city,
+        postalCode: postalCode,
+        fecha: new Date().toLocaleString()
+      };
+
+      const webhookUrl = "https://hook.us2.make.com/1jtkkvp18vp5m5pjwz31ccvthp1kgtu7";
+
+      const response = await fetch(webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) throw new Error(`Servidor: ${response.status}`);
+
+      alert("¡Pedido enviado con éxito! 🚀");
+      onClose();
+
+    } catch (error) {
+      console.error("❌ Error:", error);
+      alert(`Error al procesar: ${error.message || error}`);
+    } finally {
       setLoading(false);
-    }, 1500);
+    }
   };
 
   return (
@@ -39,53 +133,68 @@ export default function CheckoutModal({ product, selectedSize, onClose }) {
           <button onClick={onClose} style={closeButtonStyle}>✕</button>
         </div>
 
-        {/* Resumen del producto */}
         <div style={summaryBoxStyle}>
-          <p style={{ color: "#a1a1aa", margin: "0 0 4px 0", fontSize: "0.85rem" }}>Producto seleccionado:</p>
-          <p style={{ color: "#fff", margin: 0, fontWeight: "600" }}>{product.name} (Talla: {selectedSize})</p>
-          <p style={{ color: "#3b82f6", margin: "8px 0 0 0", fontWeight: "bold" }}>${product.price} MXN</p>
+          <p style={{ color: "#a1a1aa", margin: "0 0 4px 0", fontSize: "0.85rem" }}>Producto:</p>
+          <p style={{ color: "#fff", margin: 0, fontWeight: "600" }}>{product?.name}</p>
+          <p style={{ color: "#16a34a", margin: "8px 0 0 0", fontWeight: "bold" }}>${product?.price} MXN</p>
         </div>
 
-        {/* Formulario de envío */}
         <form onSubmit={handleProcessPayment} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          {product?.rawFile ? (
+            <div style={{ backgroundColor: "#14532d20", border: "1px solid #16a34a", borderRadius: "8px", padding: "10px", color: "#4ade80", fontSize: "0.85rem" }}>
+              ✓ Captura de pantalla e imagen HD adjuntas.
+            </div>
+          ) : (
+            <div>
+              <label style={labelStyle}>Sube tu diseño:</label>
+              <input 
+                type="file" 
+                accept="image/*"
+                required={!product?.rawFile}
+                onChange={(e) => {
+                  if (e.target.files && e.target.files[0]) {
+                    setImageFile(e.target.files[0]);
+                  }
+                }}
+                style={{ color: "#fff", fontSize: "0.9rem", marginTop: "4px" }} 
+              />
+            </div>
+          )}
+
           <div>
             <label style={labelStyle}>Nombre Completo</label>
-            <input type="text" name="name" required value={formData.name} onChange={handleChange} style={inputStyle} placeholder="Juan Pérez" />
+            <input type="text" required value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} placeholder="Juan Pérez" />
           </div>
 
           <div style={{ display: "flex", gap: "10px" }}>
             <div style={{ flex: 1 }}>
-              <label style={labelStyle}>Correo Electrónico</label>
-              <input type="email" name="email" required value={formData.email} onChange={handleChange} style={inputStyle} placeholder="correo@example.com" />
+              <label style={labelStyle}>Correo</label>
+              <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} placeholder="correo@example.com" />
             </div>
             <div style={{ flex: 1 }}>
               <label style={labelStyle}>Teléfono / WhatsApp</label>
-              <input type="tel" name="phone" required value={formData.phone} onChange={handleChange} style={inputStyle} placeholder="2291234567" />
+              <input type="tel" required value={phone} onChange={(e) => setPhone(e.target.value)} style={inputStyle} placeholder="2291234567" />
             </div>
           </div>
 
           <div>
-            <label style={labelStyle}>Dirección de Envio (Calle y Número)</label>
-            <input type="text" name="address" required value={formData.address} onChange={handleChange} style={inputStyle} placeholder="Av. Independencia #450" />
+            <label style={labelStyle}>Dirección de Envío</label>
+            <input type="text" required value={address} onChange={(e) => setAddress(e.target.value)} style={inputStyle} placeholder="Calle y número" />
           </div>
 
           <div style={{ display: "flex", gap: "10px" }}>
             <div style={{ flex: 1 }}>
-              <label style={labelStyle}>Ciudad / Municipio</label>
-              <input type="text" name="city" required value={formData.city} onChange={handleChange} style={inputStyle} placeholder="Veracruz" />
+              <label style={labelStyle}>Ciudad</label>
+              <input type="text" required value={city} onChange={(e) => setCity(e.target.value)} style={inputStyle} placeholder="Veracruz" />
             </div>
             <div style={{ flex: 1 }}>
-              <label style={labelStyle}>Código Postal</label>
-              <input type="text" name="postalCode" required value={formData.postalCode} onChange={handleChange} style={inputStyle} placeholder="91700" />
+              <label style={labelStyle}>C.P.</label>
+              <input type="text" required value={postalCode} onChange={(e) => setPostalCode(e.target.value)} style={inputStyle} placeholder="91700" />
             </div>
           </div>
 
-          <button 
-            type="submit" 
-            disabled={loading}
-            style={payButtonStyle}
-          >
-            {loading ? "Generando pago..." : "Pagar con Tarjeta (Stripe) 🔒"}
+          <button type="submit" disabled={loading} style={payButtonStyle}>
+            {loading ? "Enviando captura y pedido..." : "Enviar Pedido 🚀"}
           </button>
         </form>
       </div>
@@ -93,71 +202,10 @@ export default function CheckoutModal({ product, selectedSize, onClose }) {
   );
 }
 
-// Estilos limpios y oscuros acordes a tu diseño
-const modalOverlayStyle = {
-  position: "fixed",
-  top: 0, left: 0, width: "100%", height: "100%",
-  backgroundColor: "rgba(0, 0, 0, 0.8)",
-  display: "flex", justifyContent: "center", alignItems: "center",
-  zIndex: 1000,
-  padding: "20px"
-};
-
-const modalContentStyle = {
-  backgroundColor: "#18181b",
-  borderRadius: "16px",
-  padding: "30px",
-  width: "100%",
-  maxWidth: "480px",
-  border: "1px solid #27272a",
-  boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.5)"
-};
-
-const summaryBoxStyle = {
-  backgroundColor: "#09090b",
-  padding: "14px",
-  borderRadius: "8px",
-  marginBottom: "20px",
-  border: "1px solid #27272a"
-};
-
-const labelStyle = {
-  display: "block",
-  color: "#d4d4d8",
-  fontSize: "0.85rem",
-  marginBottom: "6px",
-  fontWeight: "500"
-};
-
-const inputStyle = {
-  width: "100%",
-  padding: "10px 12px",
-  backgroundColor: "#09090b",
-  border: "1px solid #3f3f46",
-  borderRadius: "8px",
-  color: "#fff",
-  fontSize: "0.95rem",
-  outline: "none"
-};
-
-const payButtonStyle = {
-  marginTop: "10px",
-  width: "100%",
-  padding: "12px",
-  backgroundColor: "#635bff", // Color característico de Stripe
-  color: "#fff",
-  border: "none",
-  borderRadius: "8px",
-  fontWeight: "bold",
-  fontSize: "1rem",
-  cursor: "pointer",
-  transition: "background-color 0.2s"
-};
-
-const closeButtonStyle = {
-  background: "transparent",
-  border: "none",
-  color: "#a1a1aa",
-  fontSize: "1.2rem",
-  cursor: "pointer"
-};
+const modalOverlayStyle = { position: "fixed", top: 0, left: 0, width: "100%", height: "100%", backgroundColor: "rgba(0, 0, 0, 0.8)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000, padding: "20px" };
+const modalContentStyle = { backgroundColor: "#18181b", borderRadius: "16px", padding: "30px", width: "100%", maxWidth: "480px", border: "1px solid #27272a", boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.5)" };
+const summaryBoxStyle = { backgroundColor: "#09090b", padding: "14px", borderRadius: "8px", marginBottom: "20px", border: "1px solid #27272a" };
+const labelStyle = { display: "block", color: "#d4d4d8", fontSize: "0.85rem", marginBottom: "6px", fontWeight: "500" };
+const inputStyle = { width: "100%", padding: "10px 12px", backgroundColor: "#09090b", border: "1px solid #3f3f46", borderRadius: "8px", color: "#fff", fontSize: "0.95rem", outline: "none" };
+const payButtonStyle = { marginTop: "10px", width: "100%", padding: "12px", backgroundColor: "#16a34a", color: "#fff", border: "none", borderRadius: "8px", fontWeight: "bold", fontSize: "1rem", cursor: "pointer" };
+const closeButtonStyle = { background: "transparent", border: "none", color: "#a1a1aa", fontSize: "1.2rem", cursor: "pointer" };

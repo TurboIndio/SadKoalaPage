@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { createClient } from "@supabase/supabase-js";
 import { animate } from 'animejs';
+import html2canvas from 'html2canvas';
 import './App.css';
 import Nav from "./navMain.jsx";
 import ShirtCatalog from "./shirtCatalog.jsx";
@@ -9,6 +10,41 @@ import Playmat from "./playmatsCustom.jsx";
 import MainView from "./mainPage.jsx"; 
 
 const supabase = createClient("https://wnezxpgkymojzotrzcmc.supabase.co", "sb_publishable_GWwMGvh0jiuJKxlV_EXnrA_q-yk3899");
+
+const MAKE_WEBHOOK_URL = "https://hook.us2.make.com/1jtkkvp18vp5m5pjwz31ccvthp1kgtu7";
+
+// Función auxiliar para mantener el formato vertical completo sin recortes, usando un lienzo vertical con fondo negro
+async function padImageVertical(blobOrUrl) {
+  return new Promise((resolve) => {
+    const url = typeof blobOrUrl === "string" ? blobOrUrl : URL.createObjectURL(blobOrUrl);
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      // Definimos un formato vertical balanceado (ej. proporción 3:4 o el alto natural si es mayor)
+      const targetWidth = img.width;
+      const targetHeight = Math.max(img.height, Math.round(img.width * 1.33));
+      
+      const canvas = document.createElement("canvas");
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+      const ctx = canvas.getContext("2d");
+
+      // Fondo negro sólido para que Telegram integre la imagen vertical completa
+      ctx.fillStyle = "#000000";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Centramos la imagen original exactamente en medio del lienzo vertical
+      const x = (canvas.width - img.width) / 2;
+      const y = (canvas.height - img.height) / 2;
+      ctx.drawImage(img, x, y);
+
+      canvas.toBlob((blob) => {
+        resolve(blob);
+      }, 'image/png');
+    };
+    img.src = url;
+  });
+}
 
 export default function App() {
   const [currentView, setCurrentView] = useState("main");
@@ -82,6 +118,122 @@ export default function App() {
 
   const handleRemoveFromCart = (cartId) => {
     setCart((prevCart) => prevCart.filter(item => item.cartId !== cartId));
+  };
+
+  const uploadToSupabase = async (source, prefix = "img") => {
+    if (!source) return "";
+
+    if (typeof source === "string" && source.startsWith("http") && !source.includes("blob:")) {
+      return source;
+    }
+
+    try {
+      let fileBlob = source;
+
+      if (typeof source === "string") {
+        const res = await fetch(source);
+        fileBlob = await res.blob();
+      }
+
+      const cleanFileName = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}_${prefix}.png`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("playmats")
+        .upload(cleanFileName, fileBlob, { cacheControl: "3600", upsert: false });
+
+      if (uploadError) {
+        console.error("Error subiendo a Supabase Storage:", uploadError);
+        return "";
+      }
+
+      const { data: publicUrlData } = supabase.storage
+        .from("playmats")
+        .getPublicUrl(cleanFileName);
+
+      return publicUrlData?.publicUrl || "";
+    } catch (err) {
+      console.error("Error procesando imagen para Supabase:", err);
+      return "";
+    }
+  };
+
+  const handleAutomaticCheckout = async (itemsToProcess) => {
+    const itemsArray = Array.isArray(itemsToProcess) ? itemsToProcess : [itemsToProcess];
+    if (itemsArray.length === 0) return;
+
+    try {
+      const processedItems = [];
+
+      for (const item of itemsArray) {
+        const prod = item.product || {};
+
+        const hdSource = prod.rawFile || prod.file || prod.image || prod.imageUrl || prod.imagenUrl;
+        const finalHdUrl = await uploadToSupabase(hdSource, "hd");
+
+        let finalPreviewUrl = "";
+        const previewElement = document.getElementById('tu-contenedor-preview');
+
+        if (previewElement) {
+          const canvas = await html2canvas(previewElement, { scale: 1, useCORS: true });
+          const previewBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+          
+          // Procesamos para mantener el formato vertical completo
+          const verticalBlob = await padImageVertical(previewBlob);
+          finalPreviewUrl = await uploadToSupabase(verticalBlob, "encuadre");
+        } else {
+          const previewSource = prod.screenshotDataUrl || prod.previewUrl || hdSource;
+          const verticalBlob = await padImageVertical(previewSource);
+          finalPreviewUrl = await uploadToSupabase(verticalBlob, "encuadre");
+        }
+
+        processedItems.push({
+          producto: prod.name || "Producto Personalizado",
+          talla: item.size || "G",
+          color: prod.selectedColor || prod.color || "Estándar",
+          precio: prod.price || 350,
+          imagenUrl: finalHdUrl,
+          imagenPreviewUrl: finalPreviewUrl || finalHdUrl
+        });
+      }
+
+      const totalPrecio = processedItems.reduce((acc, curr) => acc + curr.precio, 0);
+
+      let captionHtml = `<b>📦 NUEVO PEDIDO MULTI-PRODUCTO (${processedItems.length} ítems)</b>\n`;
+      captionHtml += `<b>Total:</b> $${totalPrecio} MXN\n\n`;
+
+      processedItems.forEach((item, index) => {
+        captionHtml += `<b>───────────────</b>\n`;
+        captionHtml += `<b>Item ${index + 1}:</b> ${item.producto}\n`;
+        captionHtml += `👕 <b>Talla:</b> ${item.talla} | <b>Color:</b> ${item.color}\n`;
+        captionHtml += `💰 <b>Precio:</b> $${item.precio} MXN\n`;
+        captionHtml += `💾 <a href="${item.imagenUrl}">Descargar Imagen HD</a>\n`;
+      });
+
+      const orderPayload = {
+        items: processedItems,
+        totalPrecio: totalPrecio,
+        captionHtml: captionHtml,
+        imagenPreviewUrl: processedItems[0]?.imagenPreviewUrl || "",
+        fecha: new Date().toLocaleString()
+      };
+
+      const response = await fetch(MAKE_WEBHOOK_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(orderPayload)
+      });
+
+      if (response.ok) {
+        alert("¡Pedido enviado con éxito a Sad Koala Regalos! 🚀 Nos pondremos en contacto contigo.");
+        setIsCartOpen(false);
+        setCart([]);
+      } else {
+        alert(`Error al procesar pedido en el servidor. Código: ${response.status}`);
+      }
+    } catch (error) {
+      console.error("Error enviando pedido:", error);
+      alert("Error de red al conectar con Make.");
+    }
   };
 
   const cartTotal = cart.reduce((total, item) => total + ((item.product.price || 350) * item.quantity), 0);
@@ -192,7 +344,7 @@ export default function App() {
                         border: "1px solid #3f3f46"
                       }}>
                         <img 
-                          src={item.product.image} 
+                          src={item.product.image || item.product.screenshotDataUrl} 
                           alt={item.product.name} 
                           style={{ width: "100%", height: "100%", objectFit: "cover" }} 
                         />
@@ -207,8 +359,17 @@ export default function App() {
                         </p>
                       </div>
 
-                      <div style={{ display: "flex", alignItems: "center", gap: "10px", flexShrink: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
                         <span style={{ color: "#3b82f6", fontWeight: "bold", fontSize: "0.9rem" }}>${item.product.price || 350}</span>
+                        
+                        <button 
+                          onClick={() => handleAutomaticCheckout([item])} 
+                          style={whatsappItemButtonStyle}
+                          title="Enviar este pedido individual"
+                        >
+                          🚀
+                        </button>
+
                         <button onClick={() => handleRemoveFromCart(item.cartId)} style={removeButtonStyle}>🗑️</button>
                       </div>
                     </div>
@@ -221,10 +382,12 @@ export default function App() {
                 </div>
 
                 <button 
-                  onClick={() => alert("Próximamente aquí conectaremos el flujo de pago que elijas.")}
+                  onClick={() => {
+                    if (cart.length > 0) handleAutomaticCheckout(cart);
+                  }}
                   style={checkoutButtonStyle}
                 >
-                  Continuar Pedido ⚡
+                  Enviar Pedido Completo 🚀 (${cartTotal} MXN)
                 </button>
               </>
             )}
@@ -243,7 +406,7 @@ const floatingCartButtonStyle = {
 };
 
 const modalOverlayStyle = {
-  position: "fixed", top: 0, left: 0, width: "100%", height: "100%",
+  position: "fixed", top: "0", left: "0", width: "100%", height: "100%",
   backgroundColor: "rgba(0, 0, 0, 0.8)", display: "flex",
   justifyContent: "center", alignItems: "center", zIndex: 1000, padding: "20px"
 };
@@ -256,7 +419,12 @@ const modalContentStyle = {
 
 const cartItemStyle = {
   backgroundColor: "#09090b", padding: "10px", borderRadius: "8px",
-  border: "1px solid #27272a", display: "flex", alignItems: "center", gap: "12px"
+  border: "1px solid #27272a", display: "flex", alignItems: "center", gap: "10px"
+};
+
+const whatsappItemButtonStyle = {
+  background: "#16a34a", border: "none", borderRadius: "6px",
+  cursor: "pointer", fontSize: "0.9rem", padding: "6px 8px", color: "#fff"
 };
 
 const removeButtonStyle = {
