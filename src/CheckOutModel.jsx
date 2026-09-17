@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { supabase } from "../supabaseClient";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient("https://wnezxpgkymojzotrzcmc.supabase.co", "sb_publishable_GWwMGvh0jiuJKxlV_EXnrA_q-yk3899");
 
 export default function CheckoutModal({ product, selectedSize, onClose }) {
   const [name, setName] = useState("");
@@ -28,7 +30,6 @@ export default function CheckoutModal({ product, selectedSize, onClose }) {
       const timestamp = Date.now();
       const randomStr = Math.random().toString(36).substring(2, 9);
       
-      // 1. Subir la imagen HD original
       const fileExt = hdFileToUpload.name ? hdFileToUpload.name.split('.').pop() : 'png';
       const cleanFileNameHD = `${timestamp}_${randomStr}_hd.${fileExt}`;
 
@@ -44,7 +45,6 @@ export default function CheckoutModal({ product, selectedSize, onClose }) {
 
       const imageUrl = publicUrlDataHD?.publicUrl;
 
-      // 2. Subir la Foto/Screenshot del encuadre
       let imagePreviewUrl = imageUrl;
 
       if (product?.screenshotDataUrl) {
@@ -70,37 +70,44 @@ export default function CheckoutModal({ product, selectedSize, onClose }) {
         }
       }
 
-      // 3. Estructurar payload compatible con la nueva plantilla multi-producto
+      const rawName = (product?.name || "Producto Personalizado").toString();
+      const rawCat = (product?.category || "").toString().toLowerCase();
+      const isPlaymat = rawCat.includes("playmat") || rawName.toLowerCase().includes("playmat");
+
       const itemData = {
-        producto: product?.name || "Producto Personalizado",
-        talla: selectedSize || "Estándar",
-        color: product?.color || "Estándar",
-        precio: product?.price || 0,
+        producto: rawName,
+        tipo: isPlaymat ? "playmat" : "playera",
+        talla: selectedSize || product?.size || (isPlaymat ? "Estándar" : "G"),
+        color: product?.color || product?.selectedColor || "Estándar",
+        precio: Number(product?.price) || (isPlaymat ? 450 : 350),
         imagenUrl: imageUrl,
         imagenPreviewUrl: imagePreviewUrl
       };
 
+      // Construcción limpia del mensaje para Telegram
       let captionHtml = `<b>📦 NUEVO PEDIDO DIRECTO</b>\n`;
       captionHtml += `<b>Cliente:</b> ${name}\n`;
       captionHtml += `<b>Contacto:</b> ${phone} | ${email}\n`;
       captionHtml += `<b>Dirección:</b> ${address}, ${city} (CP ${postalCode})\n\n`;
       captionHtml += `<b>───────────────</b>\n`;
-      captionHtml += `<b>Producto:</b> ${itemData.producto}\n`;
-      captionHtml += `👕 <b>Talla:</b> ${itemData.talla}\n`;
+      captionHtml += `📌 <b>Producto:</b> ${itemData.producto}\n`;
+      captionHtml += `${itemData.tipo === "playmat" ? "🎴" : "👕"} <b>Talla/Tipo:</b> ${itemData.talla} | <b>Color:</b> ${itemData.color}\n`;
       captionHtml += `💰 <b>Precio:</b> $${itemData.precio} MXN\n`;
-      captionHtml += `💾 <a href="${itemData.imagenUrl}">Descargar Imagen HD</a>\n`;
+      captionHtml += `💾 <a href="${itemData.imagenUrl}">Descargar Archivo HD</a>\n`;
 
       const payload = {
         items: [itemData],
         totalPrecio: itemData.precio,
         captionHtml: captionHtml,
         imagenPreviewUrl: imagePreviewUrl,
-        name: name,
-        email: email,
-        phone: phone,
-        address: address,
-        city: city,
-        postalCode: postalCode,
+        cliente: {
+          name: name,
+          email: email,
+          phone: phone,
+          address: address,
+          city: city,
+          postalCode: postalCode
+        },
         fecha: new Date().toLocaleString()
       };
 
@@ -126,14 +133,14 @@ export default function CheckoutModal({ product, selectedSize, onClose }) {
   };
 
   return (
-    <div style={modalOverlayStyle}>
-      <div style={modalContentStyle}>
+    <div style={modalOverlayStyleModal}>
+      <div style={modalContentStyleModal}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
           <h2 style={{ color: "#fff", margin: 0, fontSize: "1.25rem" }}>Finalizar Pedido</h2>
-          <button onClick={onClose} style={closeButtonStyle}>✕</button>
+          <button onClick={onClose} style={closeButtonStyleModal}>✕</button>
         </div>
 
-        <div style={summaryBoxStyle}>
+        <div style={summaryBoxStyleModal}>
           <p style={{ color: "#a1a1aa", margin: "0 0 4px 0", fontSize: "0.85rem" }}>Producto:</p>
           <p style={{ color: "#fff", margin: 0, fontWeight: "600" }}>{product?.name}</p>
           <p style={{ color: "#16a34a", margin: "8px 0 0 0", fontWeight: "bold" }}>${product?.price} MXN</p>
@@ -146,7 +153,7 @@ export default function CheckoutModal({ product, selectedSize, onClose }) {
             </div>
           ) : (
             <div>
-              <label style={labelStyle}>Sube tu diseño:</label>
+              <label style={labelStyleModal}>Sube tu diseño:</label>
               <input 
                 type="file" 
                 accept="image/*"
@@ -162,38 +169,38 @@ export default function CheckoutModal({ product, selectedSize, onClose }) {
           )}
 
           <div>
-            <label style={labelStyle}>Nombre Completo</label>
-            <input type="text" required value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} placeholder="Juan Pérez" />
+            <label style={labelStyleModal}>Nombre Completo</label>
+            <input type="text" required value={name} onChange={(e) => setName(e.target.value)} style={inputStyleModal} placeholder="Juan Pérez" />
           </div>
 
           <div style={{ display: "flex", gap: "10px" }}>
             <div style={{ flex: 1 }}>
-              <label style={labelStyle}>Correo</label>
-              <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} placeholder="correo@example.com" />
+              <label style={labelStyleModal}>Correo</label>
+              <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyleModal} placeholder="correo@example.com" />
             </div>
             <div style={{ flex: 1 }}>
-              <label style={labelStyle}>Teléfono / WhatsApp</label>
-              <input type="tel" required value={phone} onChange={(e) => setPhone(e.target.value)} style={inputStyle} placeholder="2291234567" />
+              <label style={labelStyleModal}>Teléfono / WhatsApp</label>
+              <input type="tel" required value={phone} onChange={(e) => setPhone(e.target.value)} style={inputStyleModal} placeholder="2291234567" />
             </div>
           </div>
 
           <div>
-            <label style={labelStyle}>Dirección de Envío</label>
-            <input type="text" required value={address} onChange={(e) => setAddress(e.target.value)} style={inputStyle} placeholder="Calle y número" />
+            <label style={labelStyleModal}>Dirección de Envío</label>
+            <input type="text" required value={address} onChange={(e) => setAddress(e.target.value)} style={inputStyleModal} placeholder="Calle y número" />
           </div>
 
           <div style={{ display: "flex", gap: "10px" }}>
             <div style={{ flex: 1 }}>
-              <label style={labelStyle}>Ciudad</label>
-              <input type="text" required value={city} onChange={(e) => setCity(e.target.value)} style={inputStyle} placeholder="Veracruz" />
+              <label style={labelStyleModal}>Ciudad</label>
+              <input type="text" required value={city} onChange={(e) => setCity(e.target.value)} style={inputStyleModal} placeholder="Veracruz" />
             </div>
             <div style={{ flex: 1 }}>
-              <label style={labelStyle}>C.P.</label>
-              <input type="text" required value={postalCode} onChange={(e) => setPostalCode(e.target.value)} style={inputStyle} placeholder="91700" />
+              <label style={labelStyleModal}>C.P.</label>
+              <input type="text" required value={postalCode} onChange={(e) => setPostalCode(e.target.value)} style={inputStyleModal} placeholder="91700" />
             </div>
           </div>
 
-          <button type="submit" disabled={loading} style={payButtonStyle}>
+          <button type="submit" disabled={loading} style={payButtonStyleModal}>
             {loading ? "Enviando captura y pedido..." : "Enviar Pedido 🚀"}
           </button>
         </form>
@@ -202,10 +209,10 @@ export default function CheckoutModal({ product, selectedSize, onClose }) {
   );
 }
 
-const modalOverlayStyle = { position: "fixed", top: 0, left: 0, width: "100%", height: "100%", backgroundColor: "rgba(0, 0, 0, 0.8)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000, padding: "20px" };
-const modalContentStyle = { backgroundColor: "#18181b", borderRadius: "16px", padding: "30px", width: "100%", maxWidth: "480px", border: "1px solid #27272a", boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.5)" };
-const summaryBoxStyle = { backgroundColor: "#09090b", padding: "14px", borderRadius: "8px", marginBottom: "20px", border: "1px solid #27272a" };
-const labelStyle = { display: "block", color: "#d4d4d8", fontSize: "0.85rem", marginBottom: "6px", fontWeight: "500" };
-const inputStyle = { width: "100%", padding: "10px 12px", backgroundColor: "#09090b", border: "1px solid #3f3f46", borderRadius: "8px", color: "#fff", fontSize: "0.95rem", outline: "none" };
-const payButtonStyle = { marginTop: "10px", width: "100%", padding: "12px", backgroundColor: "#16a34a", color: "#fff", border: "none", borderRadius: "8px", fontWeight: "bold", fontSize: "1rem", cursor: "pointer" };
-const closeButtonStyle = { background: "transparent", border: "none", color: "#a1a1aa", fontSize: "1.2rem", cursor: "pointer" };
+const modalOverlayStyleModal = { position: "fixed", top: 0, left: 0, width: "100%", height: "100%", backgroundColor: "rgba(0, 0, 0, 0.8)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000, padding: "20px" };
+const modalContentStyleModal = { backgroundColor: "#18181b", borderRadius: "16px", padding: "30px", width: "100%", maxWidth: "480px", border: "1px solid #27272a", boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.5)" };
+const summaryBoxStyleModal = { backgroundColor: "#09090b", padding: "14px", borderRadius: "8px", marginBottom: "20px", border: "1px solid #27272a" };
+const labelStyleModal = { display: "block", color: "#d4d4d8", fontSize: "0.85rem", marginBottom: "6px", fontWeight: "500" };
+const inputStyleModal = { width: "100%", padding: "10px 12px", backgroundColor: "#09090b", border: "1px solid #3f3f46", borderRadius: "8px", color: "#fff", fontSize: "0.95rem", outline: "none" };
+const payButtonStyleModal = { marginTop: "10px", width: "100%", padding: "12px", backgroundColor: "#16a34a", color: "#fff", border: "none", borderRadius: "8px", fontWeight: "bold", fontSize: "1rem", cursor: "pointer" };
+const closeButtonStyleModal = { background: "transparent", border: "none", color: "#a1a1aa", fontSize: "1.2rem", cursor: "pointer" };
